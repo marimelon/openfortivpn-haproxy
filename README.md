@@ -23,7 +23,7 @@ docker run --rm -it \
     --device=/dev/ppp \
     --cap-add=NET_ADMIN \
     -p "1111:1111" \
-    -e REMOTE_ADDR="10.0.0.1:3389" \
+    -e REMOTE_ADDRS="1111->10.0.0.1:3389" \
     jeffre/openfortivpn-haproxy \
     fortinet.example.com:8443 \
     --username=foo \

@@ -8,20 +8,31 @@ set -e -o pipefail
 # Ensure the ppp device exists
 [[ -c /dev/ppp ]] || su-exec root mknod /dev/ppp c 108 0
 
-
-# Set default values
-LOCAL_PORT=${LOCAL_PORT:-"1111"}
-#REMOTE_ADDR=${REMOTE_ADDR:-"127.0.0.1:80"}
-
-
-# Do not run haproxy without REMOTE_ADDR
-if [[ ! -n "${REMOTE_ADDR}" ]]; then
-  echo "Environment variable REMOTE_ADDR is not set."
+# Do not run haproxy without REMOTE_ADDRS
+if [[ ! -n "${REMOTE_ADDRS}" ]]; then
+  echo "Environment variable REMOTE_ADDRS is not set."
 else
   # Tweak haproxy config
-  sed -i /etc/haproxy/haproxy.cfg \
-      -e "s|bind 0\.0\.0\.0.*|bind 0.0.0.0:${LOCAL_PORT}|g" \
-      -e "s|server srv1.*|server srv1 ${REMOTE_ADDR} maxconn 2048|g"
+  REMOTE_ADDRS=(${REMOTE_ADDRS// /})
+  IFS=,
+  REMOTE_ADDRS=(${REMOTE_ADDRS})
+
+  COUNTER=1
+  for REMOTE_ADDR in "${REMOTE_ADDRS[@]}"; do 
+    echo $REMOTE_ADDR
+    Q=(${REMOTE_ADDR//->/,})
+    LOCALPORT=(${Q[0]})
+    REMOTE=(${Q[1]})
+    cat <<- EOF >> /etc/haproxy/haproxy.cfg
+frontend fr_server$COUNTER
+    bind 0.0.0.0:$LOCALPORT
+    default_backend bk_server$COUNTER
+backend bk_server$COUNTER
+    server srv1 $REMOTE maxconn 2048
+EOF
+    COUNTER=`expr $COUNTER + 1`
+  done
+
   # Run haproxy daemon
   exec su-exec root haproxy -f /etc/haproxy/haproxy.cfg &
 fi
